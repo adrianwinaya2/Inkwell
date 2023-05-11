@@ -2,46 +2,54 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+
 use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
-    public function login() {
-        return view('user.login');
-    }
 
     public function authenticate(Request $request) {
-        $validated = $this->validate($request, [
-            'email' => 'required|email',
+        $validated = $request->validate([
+            'email' => 'required',
             'password' => 'required'
         ]);
+        $remember = $request->has('remember') ? true : false;
 
-        if (auth()->attempt($validated)) {
-            return redirect()->route('post.all_post');
+        if (auth()->attempt($validated, $remember)) {
+            return redirect()->route('index');
         } else {
-            return redirect()->back()->with('error', 'Invalid email or password');
+            return back()->with('error', 'Invalid username or password')->withInput();
         }
-    }
-
-    public function register() {
-        return view('user.register');
     }
 
     public function create_user(Request $request) {
         $validated = $this->validate($request, [
-            'username' => 'required',
+            'name' => 'required|string|max:255',
+            'username' => 'required|unique:users,username',
             'email' => 'required|email|unique:users,email',
             'password' => 'required'
         ]);
-
         $validated['password'] = bcrypt($validated['password']);
 
         $user = User::create($validated);
 
-        if ($user) {
-            return redirect()->route('user.login')->with('success', 'User created successfully');
-        } else {
-            return redirect()->back()->with('error', 'User creation failed');
-        }
+        auth()->login($user);
+        $request->session()->regenerate();
+        return redirect()->route('post.index');
+    }
+
+    public function logout(Request $request)
+    {
+        auth()->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect()->route('user.login');
+    }
+
+    // API
+    public function show(Request $request, $user_id=null) {
+        $user = $user_id ? User::find($user_id) : User::all();
+        return $user ? response()->json(['user' => $user]) : response()->json(['error' => 'User not found']);
     }
 }

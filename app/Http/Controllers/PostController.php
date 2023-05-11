@@ -2,19 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Post;
+
 use Illuminate\Http\Request;
 
 class PostController extends Controller
 {
-    public function index() {
-        $posts = Post::with('comments', 'likes')->get();
-        return response()->json([
-            'posts' => $posts
-        ]);
+    // CRUD
+    public function index(Request $request) {
+        $posts = Post::with('comments')->get();
+        return $posts ? response()->json(['posts' => $posts]) : response()->json(['error' => 'No Post Found']);
     }
 
-    // CRUD
-    public function create_post(Request $request)
+    public function store(Request $request)
     {
         // Validate the input
         $validated = $request->validate([
@@ -24,43 +24,33 @@ class PostController extends Controller
 
         // Create the post
         $post = new Post();
-        $post->user_id = auth()->user()->id;
+        $post->poster_id = auth()->user()->id;
         $post->image = '-';
         $post->caption = $request->input('caption');
         $post->save();
 
         // Store the image in storage/app/public/images directory
         $image = $validated['image'];
-        $filename = $post->id . '_' . $image->getClientOriginalExtension();
-        $path = $file->storeAs('public/images', $filename);
+        $filename = $post->id . '.' . $image->getClientOriginalExtension();
+        $path = $image->storeAs('images', $filename, 'public');
 
         // Update the post's image
         $post->image = $path;
         $post->save();
 
-        // Redirect the user to the post view page
-        // return redirect()->route('post.view', [
-        //     'id' => $post->id
-        // ]);
         return response()->json([
-            'message' => 'Post ' . $post->id . ' created successfully'
+            'message' => 'Post with ID ' . $post->id . ' created successfully',
+            'id' => $post->id
         ]);
     }
 
-    public function get_post(Request $request, $id)
+    public function show(Request $request, $post_id)
     {
-        $post = Post::find($id)->with('comments', 'likes')->first();
-
-        // Return the post view page
-        // return view('post.post', [
-        //     'post' => $post,
-        // ]);
-        return response()->json([
-            'post' => $post
-        ]);
+        $posts = Post::with('comments')->where('id', $post_id)->get();
+        return $posts ? response()->json(['posts' => $posts]) : response()->json(['error' => 'Post not found']);
     }
 
-    public function update_post(Request $request, $id)
+    public function update(Request $request, $id)
     {
         $post = Post::find($id);
 
@@ -92,14 +82,14 @@ class PostController extends Controller
         ]);
     }
 
-    public function delete_post(Request $request, $id)
+    public function destroy(Request $request, $id)
     {
         $post = Post::find($id);
 
         if (auth()->user()->id != $post->poster->id) {
             // return redirect()->back()->with('error', 'You are not authorized to delete this post');
             return response()->json([
-                'error' => 'You are not authorized to delete this post'
+                'message' => 'You are not authorized to delete this post'
             ]);
         }
 
@@ -107,7 +97,8 @@ class PostController extends Controller
 
         // return redirect()->route('post.all_post');
         return response()->json([
-            'message' => 'Post ' . $post->id . ' deleted successfully'
+            'message' => 'Post ' . $post->id . ' deleted successfully',
+            'status' => 'success'
         ]);
     }
 
@@ -119,7 +110,7 @@ class PostController extends Controller
         ]);
 
         $comment = new Comment();
-        $comment->user_id = auth()->user()->id;
+        $comment->commenter_id = auth()->user()->id;
         $comment->post_id = $post_id;
         $comment->comment = $request->input('comment');
         $comment->save();
@@ -133,14 +124,14 @@ class PostController extends Controller
     // Like
     public function like(Request $request, $post_id)
     {
-        if ($Like::where('user_id', auth()->user()->id)->where('post_id', $post_id)->first()) {
+        if ($Like::where('liker_id', auth()->user()->id)->where('post_id', $post_id)->first()) {
             return response()->json([
                 'error' => 'You have liked this post'
             ]);
         }
         
         $like = new Like();
-        $like->user_id = auth()->user()->id;
+        $like->liker_id = auth()->user()->id;
         $like->post_id = $post_id;
         $like->save();
 
@@ -153,7 +144,7 @@ class PostController extends Controller
     // Unlike
     public function unlike(Request $request, $post_id)
     {
-        $like = Like::where('user_id', auth()->user()->id)->where('post_id', $post_id)->first();
+        $like = Like::where('liker_id', auth()->user()->id)->where('post_id', $post_id)->first();
 
         if (!$like) {
             return response()->json([

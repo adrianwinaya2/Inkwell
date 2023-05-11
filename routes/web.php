@@ -2,6 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\PostController;
+use App\Http\Controllers\ViewController;
+use App\Http\Controllers\CommentController;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -13,30 +18,55 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// Route::get('/', function () {
-//     return view('index');
-// });
+Route::controller(ViewController::class)->group(function() {
+    Route::get('/login', 'login')->name('login');
+    Route::get('/register', 'register')->name('register');
 
-Route::prefix('post')->group(function() {
+    Route::middleware(['auth'])->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/new_post', 'new_post')->name('new_post');
+        Route::get('/post/{id}', 'view_post')->name('view_post');
+    });
+});
+
+Route::group(['as' => 'post.', 'prefix' => 'post', 'middleware' => 'auth'], function() {
     Route::controller(PostController::class)->group(function() {
-        Route::get('/', 'index')->name('all_post');
+        // api
+        Route::get('/', 'index')->name('index');
 
-        Route::post('/create', 'create_post')->name('create');
-        Route::get('/post/{id}', 'get_post')->name('get_post');
-        Route::put('/update_post/{id}', 'update_post')->name('update_post');
-        Route::delete('/delete_post/{id}', 'delete_post')->name('delete_post');
+        // CRUD
+        Route::post('/store', 'store')->name('store');
+        Route::get('/show/{id}', 'show')->name('show');
+        Route::put('/update/{id}', 'update')->name('update');
+        Route::delete('/destroy/{id}', 'destroy')->name('destroy');
 
         Route::post('/comment/{post_id}/{commenter_id}', 'comment_post')->name('comment_post');
         Route::post('/like/{post_id}/{liker_id}', 'like_post')->name('like_post');
     });
 });
 
-Route::prefix('user')->group(function() {
-    Route::controller(UserController::class)->group(function() {
-        Route::get('/login', 'login')->name('login');
-        Route::post('/authenticate', 'authenticate')->name('authenticate');
+Route::group(['as' => 'comment.', 'prefix' => 'comment', 'middleware' => 'auth'], function() {
+    Route::controller(CommentController::class)->group(function() {
+        // api
+        Route::get('/', 'index')->name('index');
 
-        Route::get('/register', 'register')->name('register');
+        // CRUD
+        Route::post('/store/{id}', 'store')->name('store');
+        Route::get('/show/{id}', 'show')->name('show');
+        Route::put('/update/{id}', 'update')->name('update');
+        Route::delete('/destroy/{id}', 'destroy')->name('destroy');
+    });
+});
+
+
+Route::group(['as' => 'user.', 'prefix' => 'user'], function() {
+    Route::controller(UserController::class)->group(function() {
+        Route::post('/authenticate', 'authenticate')->name('authenticate');
         Route::post('/create_user', 'create_user')->name('create_user');
+        Route::post('/logout', 'logout')->middleware('auth')->name('logout');
+
+        // api
+        Route::get('/', 'show')->name('index');
+        Route::get('/{id}', 'show')->name('show');
     });
 });
